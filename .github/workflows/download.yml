@@ -1,0 +1,67 @@
+name: Download YouTube Video
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: 'YouTube Video URL or ID'
+        required: true
+        type: string
+      quality:
+        description: 'Video Quality'
+        required: true
+        type: choice
+        options:
+          - '1080'
+          - '720'
+          - '480'
+          - '360'
+        default: '720'
+
+permissions:
+  contents: write
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install -U yt-dlp
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg p7zip-full
+
+      - name: Create cookies file
+        run: |
+          printf "%s" "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Download video
+        run: node src/download.js "${{ inputs.video_url }}" "${{ inputs.quality }}"
+
+      - name: Remove cookies file
+        run: rm -f cookies.txt
+        if: always()
+
+      - name: Commit and push results
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add data/
+          git diff --staged --quiet || git commit -m "Downloaded video"
+          git push
